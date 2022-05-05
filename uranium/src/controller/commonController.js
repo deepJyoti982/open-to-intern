@@ -103,7 +103,30 @@ const createIntern = async function (req, res) {
     }
 }
 
+const getCollegeDetails = async function(req,res) {
+    try {
+
+        let dataQuery = req.query
+       
+        if(Object.keys(dataQuery).length === 0) {
+            return res.status( 400 ).send({status: false, msg: "Put some querey first"}) 
+        }
+    
+        let findCollege = await collegeModel.findOne({$and: [dataQuery , {isDeleted: false}]}) //.select({name: 1, fullName: 1, logoLink:1, _id: 0})
+    
+        if(!findCollege) return res.status( 404 ).send({status: false, msg: "No college found"})
+        
+        let findInterns = await internModel.find({$and: [{collegeId: findCollege._id.toString()}, {isDeleted: false}]}).select({name: 1, email: 1, mobile: 1})
+        
+        if(findInterns.length == 0) return res.status( 404 ).send({status: false, msg: "This college has no interns yet!"})
+        res.status( 200 ).send({status: true, data: {name: findCollege.name, fullname: findCollege.fullName, logoLink: findCollege.logoLink, interests: findInterns}})
+    }catch( error ) {
+        res.status( 500 ).send({status: true , msg: error.message})
+    }
+} 
+
 module.exports = { 
     createCollege,
-    createIntern 
+    createIntern,
+    getCollegeDetails 
 }
