@@ -1,48 +1,45 @@
-const { default: mongoose } = require('mongoose')
 const collegeModel = require('../models/collegeModel')
 const internModel = require('../models/internModel')
+const validator = require('../validation/validator')
 
-const isValid = function (value) {
-    if (typeof value === 'undefined' || value === null) return false
-    if (typeof value === 'string' && value.trim().length === 0) return false
-    return true
-}
-
-const isValidRequestBody = function (requestBody) {
-    return Object.keys(requestBody).length > 0
-}
-
-const isValidObjectId = function (ObjectId) {
-    return mongoose.Types.ObjectId.isValid(ObjectId)
-}
 
 const createCollege = async function (req, res) {
     try {
         const requestBody = req.body
-        if (!isValidRequestBody(requestBody)) {
+        if (!validator.isValidRequestBody(requestBody)) {
             res.status(400).send({ status: false, message: 'Invalid request parameters! Please provide College details' })
             return
         }
 
-        //Extract Params
-        const { name, fullName, logoLink } = requestBody; //object destructuring
+        
+        const { name, fullName, logoLink } = requestBody; 
 
-        //Validation starts
-        if (!isValid(name)) {
+        
+        if (!validator.isValid(name)) {
             res.status(400).send({ status: false, message: 'College name is required' })
             return
         }
 
-        if (!isValid(fullName)) {
+        if(await collegeModel.findOne({name: name})) {
+            return res.status( 400 ).send({status: false, msg: `The college name '${name}' is already exist`})
+        }
+
+        if (!validator.isValid(fullName)) {
             res.status(400).send({ status: false, message: 'College fullName is required' })
             return
         }
 
-        if (!isValid(logoLink)) {
-            res.status(400).send({ status: false, message: 'Logolink is required' })
+        if(validator.isValid(logoLink)) {
+
+            if(!validator.isValidlogoLink(logoLink)) {
+                return res.status( 400 ).send({status: false, msg: "Logolink is not valid"})
+            }
+            
+        }else {
+            res.status( 400 ).send({status: false, msg: "logoLink is required"})
             return
         }
-        //validation ends
+        
         const college = await collegeModel.create(requestBody)
         res.status(201).send({ status: true, msg: 'College created succefully', data: college })
 
@@ -56,44 +53,53 @@ const createCollege = async function (req, res) {
 const createIntern = async function (req, res) {
     try {
         const requestBody = req.body
-        if (!isValidRequestBody(requestBody)) {
-            res.status(400).send({ status: false, msg: "Invalid request parameters! Please provide college details" })
+        if (!validator.isValidRequestBody(requestBody)) {
+            res.status(400).send({ status: false, msg: "Invalid request parameters! Please provide interns details" })
             return
         }
 
         const {name,email,mobile,collegeId} = requestBody
 
-        if(!isValid(name)) {
-            res.status( 400 ).send({status: false, msg: "Intern name is requuired"})
+        if(!validator.isValid(name)) {
+            res.status( 400 ).send({status: false, msg: "Intern name is required"})
             return
         }
 
-        if(isValid(email)) {
+        if(validator.isValid(email)) {
 
-            if (!(/^\w+([\.-]?\w+)@\w+([\.-]?\w+)(\.\w{2,3})+$/.test(email))){
-                res.status(400).send({status:false, message: `Emial should be a valid email address`})
-                return
+            if(!validator.isValidEmail(email)) {
+                return res.status( 400 ).send({status: false, msg: "Email shoud be a valid email address"})
             }
+            if(await internModel.findOne({email: email})) {
+                return res.status( 400 ).send({status: false, msg: "This email is already in use"})
+            }
+            
         }else {
             res.status( 400 ).send({status: false, msg: "Email Id is required"})
             return
         }
 
-        if(isValid(mobile)) {
+        if(validator.isValid(mobile)) {
 
-            if(!(/^(\+\d{1,3}[- ]?)?\d{10}$/.test(mobile))) {
-                res.status( 400 ).send({status: false, msg: "Mobile number is not valid"})
-                return
+            if(!validator.isValidMobile(mobile)) {
+                return res.status( 400 ).send({status: false, msg: "Please provide a valid mobile number"})
+            }
+            if(await internModel.findOne({mobile: mobile})) {
+                return res.status( 400 ).send({status: false, msg: "This mobile number is already in use"})
             }
         }else {
-            res.status( 400 ).send({status: false, msg: "Mobile no is required"})
+            res.status( 400 ).send({status: false, msg: "Mobile number is required"})
             return
         }
 
-        if(!isValidObjectId(collegeId)) {
+        if(!validator.isValidObjectId(collegeId)) {
             res.status( 400 ).send({status: false, msg: `${collegeId} is not a valid college Id`})
             return
         }
+
+        if(!await collegeModel.findOne({$and: [{_id: collegeId},{isDeleted: false}]})) {
+            return res.status( 400 ).send({status: false, msg: "The college is not available"})
+        } 
 
         const intern = await internModel.create(requestBody)
         res.status( 201 ).send({status: true, msg: "Intern created successfully", data: intern})
@@ -112,7 +118,7 @@ const getCollegeDetails = async function(req,res) {
             return res.status( 400 ).send({status: false, msg: "Put some querey first"}) 
         }
     
-        let findCollege = await collegeModel.findOne({$and: [dataQuery , {isDeleted: false}]}) //.select({name: 1, fullName: 1, logoLink:1, _id: 0})
+        let findCollege = await collegeModel.findOne({$and: [dataQuery , {isDeleted: false}]})
     
         if(!findCollege) return res.status( 404 ).send({status: false, msg: "No college found"})
         
